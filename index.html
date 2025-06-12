@@ -3,95 +3,74 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard IoT - Temperatura</title>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>Monitoramento de Temperatura</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      color: #333;
-      margin: 0;
-      padding: 20px;
+      background-color: #f0f4f8;
+      text-align: center;
+      padding: 2rem;
     }
     h1 {
-      color: #2e7d32;
+      color: #2d5f8b;
     }
-    #status {
-      padding: 10px;
-      margin-bottom: 20px;
-      border-radius: 5px;
+    .card {
+      background-color: #ffffff;
+      border-radius: 1rem;
+      padding: 2rem;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      max-width: 400px;
+      margin: 2rem auto;
+    }
+    .temperature {
+      font-size: 3rem;
+      color: #ff5722;
+    }
+    .status {
+      margin-top: 1rem;
       font-weight: bold;
     }
-    .ok { background: #e8f5e9; color: #2e7d32; }
-    .alerta { background: #ffebee; color: #c62828; }
   </style>
 </head>
 <body>
-  <h1>Dashboard IoT - Temperatura</h1>
-  <div id="status" class="ok">Temperatura dentro do limite</div>
-  <canvas id="grafico" width="400" height="200"></canvas>
+  <h1>Monitoramento de Temperatura</h1>
+  <div class="card">
+    <div>Temperatura Atual:</div>
+    <div id="tempValue" class="temperature">--</div>
+    <div id="status" class="status">Aguardando dados...</div>
+  </div>
 
   <script>
+    // Configuração do Firebase
     const firebaseConfig = {
-      apiKey: "",
-      authDomain: "",
-      databaseURL: "https://monitoramento-temperatur-1757b-default-rtdb.firebaseio.com/",
+      apiKey: "SUA_API_KEY",
+      authDomain: "monitoramento-temperatur-1757b.firebaseapp.com",
+      databaseURL: "https://monitoramento-temperatur-1757b-default-rtdb.firebaseio.com",
       projectId: "monitoramento-temperatur-1757b",
-      storageBucket: "",
-      messagingSenderId: "",
-      appId: ""
+      storageBucket: "monitoramento-temperatur-1757b.appspot.com",
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
     };
+
+    // Inicialização do Firebase
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    const database = firebase.database();
 
-    const statusDiv = document.getElementById('status');
-    const ctx = document.getElementById('grafico').getContext('2d');
+    // Referência ao dado
+    const tempRef = database.ref("temperatura");
 
-    const dados = {
-      labels: [],
-      datasets: [{
-        label: 'Temperatura (°C)',
-        data: [],
-        borderColor: 'green',
-        fill: false
-      }]
-    };
+    // Atualização em tempo real
+    tempRef.on("value", (snapshot) => {
+      const valor = snapshot.val();
+      document.getElementById("tempValue").textContent = `${valor} °C`;
 
-    const grafico = new Chart(ctx, {
-      type: 'line',
-      data: dados,
-      options: {
-        scales: {
-          x: { display: true },
-          y: { min: 0, max: 50 }
-        }
+      let status = "Dentro dos limites";
+      if (valor < 20 || valor > 30) {
+        status = "⚠️ Temperatura fora do limite!";
       }
-    });
-
-    db.ref("temperatura").on("value", snapshot => {
-      const val = snapshot.val();
-      const temp = val?.value;
-      const time = new Date().toLocaleTimeString();
-
-      if (temp !== undefined) {
-        dados.labels.push(time);
-        dados.datasets[0].data.push(temp);
-        if (dados.labels.length > 10) {
-          dados.labels.shift();
-          dados.datasets[0].data.shift();
-        }
-        grafico.update();
-
-        if (temp < 20 || temp > 30) {
-          statusDiv.className = 'alerta';
-          statusDiv.textContent = `⚠️ Alerta: Temperatura fora do limite! (${temp} °C)`;
-        } else {
-          statusDiv.className = 'ok';
-          statusDiv.textContent = `✅ Temperatura dentro do limite (${temp} °C)`;
-        }
-      }
+      document.getElementById("status").textContent = status;
     });
   </script>
 </body>
