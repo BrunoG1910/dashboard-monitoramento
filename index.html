@@ -1,18 +1,74 @@
 <!DOCTYPE html>
-<html lang="pt-br">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Dashboard IoT - Temperatura</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <div class="container">
-      <h1>Monitoramento de Temperatura</h1>
-      <canvas id="tempChart"></canvas>
-      <button onclick="fetchData()">Atualizar</button>
-    </div>
-    <script src="script.js"></script>
-  </body>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Monitoramento de Temperatura</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f2f2f2;
+      color: #333;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      max-width: 400px;
+      margin: auto;
+    }
+    h2 {
+      text-align: center;
+    }
+    .status {
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    .critico {
+      color: red;
+    }
+    .normal {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Temperatura Atual</h2>
+    <p id="temp">--</p>
+    <p id="status" class="status">--</p>
+    <p id="timestamp">--</p>
+  </div>
+
+  <script>
+    const firebaseConfig = {
+      databaseURL: "https://monitoramento-temperatur-1757b-default-rtdb.firebaseio.com"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    function formatDate(timestamp) {
+      const date = new Date(timestamp * 1000);
+      return date.toLocaleString();
+    }
+
+    function atualizar() {
+      db.ref("leituras/esp32_circuito").on("value", (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          document.getElementById("temp").textContent = `${data.temperatura.toFixed(2)} °C`;
+          document.getElementById("status").textContent = data.status;
+          document.getElementById("status").className = `status ${data.status}`;
+          document.getElementById("timestamp").textContent = `Atualizado: ${formatDate(data.timestamp)}`;
+        }
+      });
+    }
+
+    atualizar();
+  </script>
+</body>
 </html>
