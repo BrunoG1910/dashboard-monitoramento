@@ -4,8 +4,11 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Monitoramento de Temperatura</title>
+
+  <!-- Firebase Compat SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -38,39 +41,57 @@
   <h1>Monitoramento de Temperatura</h1>
   <div class="card">
     <div>Temperatura Atual:</div>
-    <div id="tempValue" class="temperature">--</div>
+    <div id="tempValue" class="temperature">-- °C</div>
     <div id="status" class="status">Aguardando dados...</div>
   </div>
 
   <script>
-    // Configuração do Firebase
+    // 1) Configuração do Firebase (ajuste com seus próprios dados)
     const firebaseConfig = {
       apiKey: "SUA_API_KEY",
       authDomain: "monitoramento-temperatur-1757b.firebaseapp.com",
       databaseURL: "https://monitoramento-temperatur-1757b-default-rtdb.firebaseio.com",
       projectId: "monitoramento-temperatur-1757b",
       storageBucket: "monitoramento-temperatur-1757b.appspot.com",
-      messagingSenderId: "SENDER_ID",
-      appId: "APP_ID"
+      messagingSenderId: "SEU_SENDER_ID",
+      appId: "SEU_APP_ID"
     };
 
-    // Inicialização do Firebase
+    // 2) Inicializa o Firebase
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
 
-    // Referência ao dado
-    const tempRef = database.ref("temperatura");
+    // 3) Referência direta ao nó "temperatura/atual"
+    const tempRef = database.ref("temperatura/atual");
 
-    // Atualização em tempo real
-    tempRef.on("value", (snapshot) => {
-      const valor = snapshot.val();
-      document.getElementById("tempValue").textContent = `${valor} °C`;
+    // 4) Limites de alerta
+    const ALERT_MIN = 20;
+    const ALERT_MAX = 30;
 
-      let status = "Dentro dos limites";
-      if (valor < 20 || valor > 30) {
-        status = "⚠️ Temperatura fora do limite!";
+    // 5) Listener em tempo real
+    tempRef.on("value", snapshot => {
+      const temp = snapshot.val();
+      const tempEl   = document.getElementById("tempValue");
+      const statusEl = document.getElementById("status");
+
+      if (typeof temp === "number") {
+        // exibe com duas casas decimais
+        tempEl.textContent = temp.toFixed(2) + " °C";
+
+        // define o texto de status
+        if (temp < ALERT_MIN || temp > ALERT_MAX) {
+          statusEl.textContent = "⚠️ Temperatura fora do limite!";
+          statusEl.style.color = "#d82424";
+        } else {
+          statusEl.textContent = "✅ Dentro dos limites";
+          statusEl.style.color = "#2a7f62";
+        }
+      } else {
+        // caso não venha número
+        tempEl.textContent = "-- °C";
+        statusEl.textContent = "Erro na leitura";
+        statusEl.style.color = "#555";
       }
-      document.getElementById("status").textContent = status;
     });
   </script>
 </body>
