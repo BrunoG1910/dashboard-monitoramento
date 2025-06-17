@@ -1,69 +1,37 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Monitoramento de Temperatura</title>
 
   <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-  <!-- Chart.js para gráfico de histórico -->
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f0f4f8;
-      text-align: center;
-      padding: 2rem;
-    }
-    h1 {
-      color: #2d5f8b;
-      margin-bottom: 1rem;
-    }
-    .card {
-      background-color: #fff;
-      border-radius: 1rem;
-      padding: 2rem;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-      max-width: 400px;
-      margin: 0 auto 2rem;
-    }
-    .temperature {
-      font-size: 3rem;
-      color: #ff5722;
-    }
-    .status {
-      margin-top: .5rem;
-      font-weight: bold;
-    }
-    canvas {
-      max-width: 600px;
-      margin: 2rem auto;
-      display: block;
-      background: #fff;
-      border-radius: 1rem;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-      padding: 1rem;
-    }
+    body { font-family: Arial, sans-serif; background: #f0f4f8; text-align: center; padding: 2rem; }
+    h1 { color: #2d5f8b; }
+    .card { background: #fff; padding: 2rem; border-radius: 1rem; box-shadow:0 4px 10px rgba(0,0,0,0.1); max-width:400px; margin:0 auto 2rem; }
+    .temperature { font-size: 3rem; color: #ff5722; }
+    .status { margin-top:.5rem; font-weight:bold; }
+    canvas { max-width:600px; margin:2rem auto; display:block; background:#fff; border-radius:1rem; box-shadow:0 4px 10px rgba(0,0,0,0.1); padding:1rem; }
   </style>
 </head>
 <body>
   <h1>Monitoramento de Temperatura</h1>
-
-  <!-- Card de temperatura atual -->
   <div class="card">
     <div>Temperatura Atual:</div>
     <div id="tempValue" class="temperature">--</div>
     <div id="status" class="status">Aguardando dados...</div>
   </div>
 
-  <!-- Gráfico de histórico -->
   <canvas id="historyChart"></canvas>
 
   <script>
-    // === 1) Configuração Firebase ===
+    // 1) Init Firebase
     const firebaseConfig = {
       apiKey: "SUA_API_KEY",
       authDomain: "monitoramento-temperatur-1757b.firebaseapp.com",
@@ -76,23 +44,22 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // Nó "ultima" e "historico"
-    const ultimaRef = db.ref("temperatura/ultima");
+    // refs
+    const ultimaRef    = db.ref("temperatura/ultima");
     const historicoRef = db.ref("temperatura/historico");
 
-    // === 2) Atualizar temperatura atual ===
-    ultimaRef.on("value", snapshot => {
-      const valor = snapshot.val();
+    // 2) Atualiza card
+    ultimaRef.on("value", snap => {
+      const v = snap.val();
       const tv = document.getElementById("tempValue");
       const st = document.getElementById("status");
-
-      if (valor === null) {
+      if (v === null) {
         tv.textContent = "--";
         st.textContent = "Nenhum dado disponível";
         st.style.color = "#666";
       } else {
-        tv.textContent = `${valor.toFixed(2)} °C`;
-        if (valor < 20 || valor > 30) {
+        tv.textContent = v.toFixed(2) + " °C";
+        if (v < 20 || v > 30) {
           st.textContent = "⚠️ Temperatura fora do limite!";
           st.style.color = "#D32F2F";
         } else {
@@ -102,7 +69,7 @@
       }
     });
 
-    // === 3) Gráfico de histórico com Chart.js ===
+    // 3) Gráfico de histórico
     const ctx = document.getElementById("historyChart").getContext("2d");
     const chart = new Chart(ctx, {
       type: "line",
@@ -117,23 +84,24 @@
       },
       options: {
         scales: {
-          x: { title: { display: true, text: "Timestamp" } },
+          x: { title: { display: true, text: "Hora" } },
           y: { title: { display: true, text: "°C" } }
         }
       }
     });
 
-    // Preenche o gráfico inicialmente e atualiza em tempo real
-    historicoRef.on("value", snapshot => {
-      const data = snapshot.val() || {};
-      const labels = [], values = [];
-      Object.entries(data).forEach(([key, v]) => {
-        // chave automática inclui timestamp implícito, mas aqui só mostramos a hora
-        labels.push(new Date(parseInt(key.substr(1),36) || Date.now()).toLocaleTimeString());
-        values.push(v);
-      });
+    historicoRef.on("value", snap => {
+      const items = snap.val() || {};
+      const labels = [], data = [];
+      // percorre em ordem cronológica
+      Object.entries(items).sort((a,b)=> items[a[0]].ts - items[b[0]].ts )
+        .forEach(([key, obj]) => {
+          const date = new Date(obj.ts * 1000);
+          labels.push(date.toLocaleTimeString());
+          data.push(obj.value);
+        });
       chart.data.labels = labels;
-      chart.data.datasets[0].data = values;
+      chart.data.datasets[0].data = data;
       chart.update();
     });
   </script>
