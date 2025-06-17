@@ -8,7 +8,7 @@
   <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
-  <!-- Chart.js -->
+  <!-- Chart.js para gráfico de histórico -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -20,6 +20,7 @@
     }
     h1 {
       color: #2d5f8b;
+      margin-bottom: 1rem;
     }
     .card {
       background-color: #fff;
@@ -27,43 +28,42 @@
       padding: 2rem;
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
       max-width: 400px;
-      margin: 2rem auto;
+      margin: 0 auto 2rem;
     }
     .temperature {
       font-size: 3rem;
       color: #ff5722;
     }
     .status {
-      margin-top: 1rem;
+      margin-top: .5rem;
       font-weight: bold;
     }
-    #trendContainer {
-      max-width: 800px;
+    canvas {
+      max-width: 600px;
       margin: 2rem auto;
+      display: block;
       background: #fff;
-      padding: 1rem;
       border-radius: 1rem;
       box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      padding: 1rem;
     }
   </style>
 </head>
 <body>
   <h1>Monitoramento de Temperatura</h1>
 
+  <!-- Card de temperatura atual -->
   <div class="card">
     <div>Temperatura Atual:</div>
     <div id="tempValue" class="temperature">--</div>
     <div id="status" class="status">Aguardando dados...</div>
   </div>
 
-  <div id="trendContainer">
-    <canvas id="trendChart"></canvas>
-  </div>
+  <!-- Gráfico de histórico -->
+  <canvas id="historyChart"></canvas>
 
   <script>
-    // ===========================
-    // 1) Configuração do Firebase
-    // ===========================
+    // === 1) Configuração Firebase ===
     const firebaseConfig = {
       apiKey: "SUA_API_KEY",
       authDomain: "monitoramento-temperatur-1757b.firebaseapp.com",
@@ -76,73 +76,64 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // ===========================
-    // 2) Referências no RTDB
-    // - 'latest' armazena só o último valor
-    // - 'historico' armazena lista com timestamp
-    // ===========================
-    const latestRef = db.ref("latestTemperatura");
-    const historyRef = db.ref("historicoTemperatura");
+    // Nó "ultima" e "historico"
+    const ultimaRef = db.ref("temperatura/ultima");
+    const historicoRef = db.ref("temperatura/historico");
 
-    // ===========================
-    // 3) Atualização do card
-    // ===========================
-    latestRef.on("value", snap => {
-      const v = snap.val();
-      document.getElementById("tempValue").textContent = `${v} °C`;
-      const s = (v < 20 || v > 30)
-                ? "⚠️ Temperatura fora do limite!"
-                : "Dentro dos limites";
-      document.getElementById("status").textContent = s;
+    // === 2) Atualizar temperatura atual ===
+    ultimaRef.on("value", snapshot => {
+      const valor = snapshot.val();
+      const tv = document.getElementById("tempValue");
+      const st = document.getElementById("status");
+
+      if (valor === null) {
+        tv.textContent = "--";
+        st.textContent = "Nenhum dado disponível";
+        st.style.color = "#666";
+      } else {
+        tv.textContent = `${valor.toFixed(2)} °C`;
+        if (valor < 20 || valor > 30) {
+          st.textContent = "⚠️ Temperatura fora do limite!";
+          st.style.color = "#D32F2F";
+        } else {
+          st.textContent = "✔️ Dentro dos limites";
+          st.style.color = "#388E3C";
+        }
+      }
     });
 
-    // ===========================
-    // 4) Configura e monta o Chart.js
-    // ===========================
-    const ctx = document.getElementById("trendChart").getContext("2d");
+    // === 3) Gráfico de histórico com Chart.js ===
+    const ctx = document.getElementById("historyChart").getContext("2d");
     const chart = new Chart(ctx, {
       type: "line",
       data: {
-        labels: [],    // timestamps
+        labels: [],
         datasets: [{
           label: "Temperatura (°C)",
-          data: [],    // valores
-          fill: true,
-          tension: 0.3,
-          pointRadius: 2
+          data: [],
+          fill: false,
+          tension: 0.1
         }]
       },
       options: {
         scales: {
-          x: {
-            type: "time",
-            time: { parser: "HH:mm:ss", tooltipFormat: "HH:mm:ss" },
-            title: { display: true, text: "Horário" }
-          },
-          y: {
-            title: { display: true, text: "°C" }
-          }
-        },
-        plugins: {
-          legend: { display: false }
-        },
-        responsive: true,
-        maintainAspectRatio: false
+          x: { title: { display: true, text: "Timestamp" } },
+          y: { title: { display: true, text: "°C" } }
+        }
       }
     });
 
-    // ===========================
-    // 5) Função para atualizar histórico no gráfico
-    // ===========================
-    historyRef.limitToLast(50).on("value", snap => {
-      const data = snap.val() || {};
-      const entries = Object.entries(data)
-        .map(([ts, temp]) => ({ time: new Date(Number(ts)), value: temp }));
-      // ordenar por timestamp
-      entries.sort((a,b) => a.time - b.time);
-
-      chart.data.labels = entries.map(e => e.time);
-      chart.data.datasets[0].data = entries.map(e => e.value);
+    // Preenche o gráfico inicialmente e atualiza em tempo real
+    historicoRef.on("value", snapshot => {
+      const data = snapshot.val() || {};
+      const labels = [], values = [];
+      Object.entries(data).forEach(([key, v]) => {
+        // chave automática inclui timestamp implícito, mas aqui só mostramos a hora
+        labels.push(new Date(parseInt(key.substr(1),36) || Date.now()).toLocaleTimeString());
+        values.push(v);
+      });
+      chart.data.labels = labels;
+      chart.data.datasets[0].data = values;
       chart.update();
     });
   </script>
