@@ -2,10 +2,15 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Monitoramento de Temperatura</title>
+
+  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -32,55 +37,113 @@
       margin-top: 1rem;
       font-weight: bold;
     }
+    #trendContainer {
+      max-width: 800px;
+      margin: 2rem auto;
+      background: #fff;
+      padding: 1rem;
+      border-radius: 1rem;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
   </style>
 </head>
 <body>
   <h1>Monitoramento de Temperatura</h1>
+
   <div class="card">
-    <div>Última Leitura:</div>
-    <div id="tempValue" class="temperature">-- °C</div>
-    <div id="status"    class="status">Aguardando dados...</div>
+    <div>Temperatura Atual:</div>
+    <div id="tempValue" class="temperature">--</div>
+    <div id="status" class="status">Aguardando dados...</div>
+  </div>
+
+  <div id="trendContainer">
+    <canvas id="trendChart"></canvas>
   </div>
 
   <script>
-    // 1) Configurar o Firebase com suas credenciais
+    // ===========================
+    // 1) Configuração do Firebase
+    // ===========================
     const firebaseConfig = {
       apiKey: "SUA_API_KEY",
       authDomain: "monitoramento-temperatur-1757b.firebaseapp.com",
       databaseURL: "https://monitoramento-temperatur-1757b-default-rtdb.firebaseio.com",
       projectId: "monitoramento-temperatur-1757b",
       storageBucket: "monitoramento-temperatur-1757b.appspot.com",
-      messagingSenderId: "SEU_SENDER_ID",
-      appId: "SEU_APP_ID"
+      messagingSenderId: "SENDER_ID",
+      appId: "APP_ID"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // 2) Aponte para o nó "temperatura/ultima"
-    const ultimaRef = db.ref("temperatura/ultima");
+    // ===========================
+    // 2) Referências no RTDB
+    // - 'latest' armazena só o último valor
+    // - 'historico' armazena lista com timestamp
+    // ===========================
+    const latestRef = db.ref("latestTemperatura");
+    const historyRef = db.ref("historicoTemperatura");
 
-    const ALERT_MIN = 20;
-    const ALERT_MAX = 30;
+    // ===========================
+    // 3) Atualização do card
+    // ===========================
+    latestRef.on("value", snap => {
+      const v = snap.val();
+      document.getElementById("tempValue").textContent = `${v} °C`;
+      const s = (v < 20 || v > 30)
+                ? "⚠️ Temperatura fora do limite!"
+                : "Dentro dos limites";
+      document.getElementById("status").textContent = s;
+    });
 
-    ultimaRef.on("value", snap => {
-      const valor = snap.val();
-      const elTemp   = document.getElementById("tempValue");
-      const elStatus = document.getElementById("status");
-
-      if (typeof valor === "number") {
-        elTemp.textContent = valor.toFixed(2) + " °C";
-        if (valor < ALERT_MIN || valor > ALERT_MAX) {
-          elStatus.textContent = "⚠️ Fora do limite!";
-          elStatus.style.color = "#d82424";
-        } else {
-          elStatus.textContent = "✅ Dentro dos limites";
-          elStatus.style.color = "#2a7f62";
-        }
-      } else {
-        elTemp.textContent = "-- °C";
-        elStatus.textContent = "Erro na leitura";
-        elStatus.style.color = "#555";
+    // ===========================
+    // 4) Configura e monta o Chart.js
+    // ===========================
+    const ctx = document.getElementById("trendChart").getContext("2d");
+    const chart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: [],    // timestamps
+        datasets: [{
+          label: "Temperatura (°C)",
+          data: [],    // valores
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2
+        }]
+      },
+      options: {
+        scales: {
+          x: {
+            type: "time",
+            time: { parser: "HH:mm:ss", tooltipFormat: "HH:mm:ss" },
+            title: { display: true, text: "Horário" }
+          },
+          y: {
+            title: { display: true, text: "°C" }
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        },
+        responsive: true,
+        maintainAspectRatio: false
       }
+    });
+
+    // ===========================
+    // 5) Função para atualizar histórico no gráfico
+    // ===========================
+    historyRef.limitToLast(50).on("value", snap => {
+      const data = snap.val() || {};
+      const entries = Object.entries(data)
+        .map(([ts, temp]) => ({ time: new Date(Number(ts)), value: temp }));
+      // ordenar por timestamp
+      entries.sort((a,b) => a.time - b.time);
+
+      chart.data.labels = entries.map(e => e.time);
+      chart.data.datasets[0].data = entries.map(e => e.value);
+      chart.update();
     });
   </script>
 </body>
